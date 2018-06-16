@@ -1,0 +1,1 @@
+open_basedir="/usr/share/nginx/html/lala.com:/usr/share/nginx/html/lala.com/public:/tmp/:/proc/"
