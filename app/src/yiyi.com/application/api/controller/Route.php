@@ -26,8 +26,8 @@ class Route extends Base
         $data = [
             'title' => "Thank's to review my application",
             'api' => [
-                ['GET', $domain . '/route/{token}'],
-                ['POST', $domain . '/route', [[22.619087,114.112567],[21.855444, 112.005764]]],
+                ['GET', $domain . '/route2/{token}'],
+                ['POST', $domain . '/route2', [[22.619087,114.112567],[21.855444, 112.005764]]],
             ],
         ];
         return $this->sendSuccess($data);
@@ -72,64 +72,60 @@ class Route extends Base
         return $this->sendSuccess($data);
     }
 
-    /**
-     * @author Lucas
-     * @param $coordinate_data
-     * @param string $sort random|order order means driving points one by one as frontend input, random picks the shortest first
-     */
-    private function getPathAndDistance($coordinate_data, $sort = 'random')
+    private function getPathAndDistance($coordinate_data)
     {
         $this->direction = new DirectionService(new Client(), new GuzzleMessageFactory());
         $this->travel_mode = TravelMode::DRIVING;
 
         $start_point = array_shift($coordinate_data);
-        $path_data = [
-            $start_point
-        ];
-        $total_distance = 0;
-        $total_time = 0;
 
-        while(!empty($coordinate_data)) {
-            if($sort == 'random') { // get nearest point first
-                $shortest_point_info = $this->getShortestPoint($start_point, $coordinate_data);
-                $key = array_search($shortest_point_info['end_point'], $coordinate_data);
-                if($key === false) return $this->sendError('Can not get shortest point');
-                unset($coordinate_data[$key]);
-            } else { // get route in accordance with the order from frontend
-                $shortest_point_info = $this->getShortestRoute($start_point, array_shift($coordinate_data));
-            }
-
-            if($shortest_point_info == false) return $this->sendError($this->getError());
-            $path_data[] = $shortest_point_info['end_point'];
-            $total_distance += $shortest_point_info['distance'];
-            $total_time += $shortest_point_info['duration'];
-
-            $start_point = $shortest_point_info['end_point'];
+        $path_list = [];
+        foreach($this->getPermutations($coordinate_data) as $list) {
+            array_unshift($list, $start_point);
+            $path_list[] = $this->getPathInfo($list);
         }
 
-        $data = [
-            'path' => $path_data,
-            'total_distance' => $total_distance,
-            'total_time' => $total_time
-        ];
+        $total_distance_list = array_column($path_list, 'total_distance');
+        $shortest_path = $path_list[array_search(min($total_distance_list), $total_distance_list)];
 
+        return $shortest_path;
+    }
+
+    private function getPermutations(array $elements)
+    {
+        if (count($elements) <= 1) {
+            yield $elements;
+        } else {
+            foreach ($this->getPermutations(array_slice($elements, 1)) as $permutation) {
+                foreach (range(0, count($elements) - 1) as $i) {
+                    yield array_merge(
+                        array_slice($permutation, 0, $i),
+                        [$elements[0]],
+                        array_slice($permutation, $i)
+                    );
+                }
+            }
+        }
+    }
+
+    private function getPathInfo($coordinate_list)
+    {
+        $data = [
+            'path' => [],
+            'total_distance' => 0,
+            'total_time' => 0,
+        ];
+        $coordinate_list = array_values($coordinate_list);
+        $length = count($coordinate_list);
+        foreach($coordinate_list as $key => $coordinate) {
+            $data['path'][] = $coordinate;
+            if($key == $length -1) break;
+            $route_info = $this->getShortestRoute($coordinate, $coordinate_list[$key + 1]);
+            $data['total_distance'] += $route_info['distance'];
+            $data['total_time'] += $route_info['duration'];
+        }
         return $data;
     }
-
-    private function getShortestPoint($start_point, $point_list) {
-        $route_list = [];
-        foreach($point_list as $tmp_point) {
-            $route_info = $this->getShortestRoute($start_point, $tmp_point);
-            if($route_info === false) return false;
-            $route_list[] = $route_info;
-        }
-
-        if(empty($route_list)) return $this->setError('Route list is empty');
-
-        array_multisort(array_column($route_list,'distance'), SORT_ASC, $route_list);
-        return $route_list[0];
-    }
-
 
     private function getShortestRoute($start_point, $end_point)
     {
