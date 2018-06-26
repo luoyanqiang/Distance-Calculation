@@ -26,8 +26,8 @@ class Route extends Base
         $data = [
             'title' => "Thank's to review my application",
             'api' => [
-                ['GET', $domain . '/route2/{token}'],
-                ['POST', $domain . '/route2', [[22.619087,114.112567],[21.855444, 112.005764]]],
+                ['GET', $domain . '/route/{token}'],
+                ['POST', $domain . '/route', [[22.619087,114.112567],[21.855444, 112.005764]]],
             ],
         ];
         return $this->sendSuccess($data);
